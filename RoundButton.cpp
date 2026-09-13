@@ -1,5 +1,10 @@
 #include "stdafx.h"
 #include "RoundButton.h"
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 IMPLEMENT_DYNAMIC(CRoundButton, CButton)
 
@@ -15,6 +20,11 @@ CRoundButton::CRoundButton()
 	, m_bTracking(false)
 	, m_bPressed(false)
 	, m_gdiplusToken(0)
+	, m_bRainbowBorder(false)
+	, m_bRainbowAnimate(false)
+	, m_nRainbowInterval(40)
+	, m_fRainbowHue(0.0f)
+	, m_bTimerRunning(false)
 {
 	GdiplusStartupInput gdiplusStartupInput;
 	GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
@@ -31,6 +41,8 @@ void CRoundButton::PreSubclassWindow()
 	ModifyStyle(0, BS_OWNERDRAW);
 	CButton::PreSubclassWindow();
 	UpdateRegion();
+	if (m_bRainbowBorder && m_bRainbowAnimate)
+		StartRainbowTimer();
 }
 
 BEGIN_MESSAGE_MAP(CRoundButton, CButton)
@@ -40,11 +52,10 @@ BEGIN_MESSAGE_MAP(CRoundButton, CButton)
 	ON_WM_LBUTTONDOWN()
 	ON_WM_LBUTTONUP()
 	ON_WM_ERASEBKGND()
+	ON_WM_TIMER()
+	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
-// ---------------------------------------------------------------------------
-// Region – makes the HWND itself rounded (true rounded edges, not just paint)
-// ---------------------------------------------------------------------------
 void CRoundButton::UpdateRegion()
 {
 	if (!GetSafeHwnd())
@@ -55,7 +66,6 @@ void CRoundButton::UpdateRegion()
 	if (rc.Width() <= 0 || rc.Height() <= 0)
 		return;
 
-	// CreateRoundRectRgn: right/bottom are exclusive → use Width()+1 / Height()+1
 	int diameter = max(0, m_nRadius * 2);
 	HRGN hRgn = ::CreateRoundRectRgn(
 		0, 0,
@@ -63,7 +73,6 @@ void CRoundButton::UpdateRegion()
 		rc.Height() + 1,
 		diameter, diameter);
 
-	// System takes ownership of hRgn after a successful SetWindowRgn
 	SetWindowRgn(hRgn, TRUE);
 }
 
@@ -73,9 +82,12 @@ void CRoundButton::OnSize(UINT nType, int cx, int cy)
 	UpdateRegion();
 }
 
-// ---------------------------------------------------------------------------
-// Property setters
-// ---------------------------------------------------------------------------
+void CRoundButton::OnDestroy()
+{
+	StopRainbowTimer();
+	CButton::OnDestroy();
+}
+
 void CRoundButton::SetRadius(int radius)
 {
 	m_nRadius = max(0, radius);
@@ -124,12 +136,71 @@ CString CRoundButton::GetButtonText() const
 	return text;
 }
 
-// ---------------------------------------------------------------------------
-// Messages
-// ---------------------------------------------------------------------------
+void CRoundButton::SetRainbowBorder(bool enable)
+{
+	m_bRainbowBorder = enable;
+	if (enable && m_bRainbowAnimate)
+		StartRainbowTimer();
+	else if (!enable)
+		StopRainbowTimer();
+	Invalidate();
+}
+
+void CRoundButton::SetRainbowAnimate(bool enable)
+{
+	m_bRainbowAnimate = enable;
+	if (enable && m_bRainbowBorder)
+		StartRainbowTimer();
+	else
+		StopRainbowTimer();
+	Invalidate();
+}
+
+void CRoundButton::SetRainbowSpeed(UINT intervalMs)
+{
+	m_nRainbowInterval = max(10u, intervalMs);
+	if (m_bTimerRunning)
+	{
+		StopRainbowTimer();
+		StartRainbowTimer();
+	}
+}
+
+void CRoundButton::StartRainbowTimer()
+{
+	if (!GetSafeHwnd())
+		return;
+	if (m_bTimerRunning)
+		return;
+	SetTimer(TIMER_RAINBOW, m_nRainbowInterval, NULL);
+	m_bTimerRunning = true;
+}
+
+void CRoundButton::StopRainbowTimer()
+{
+	if (!GetSafeHwnd())
+		return;
+	if (!m_bTimerRunning)
+		return;
+	KillTimer(TIMER_RAINBOW);
+	m_bTimerRunning = false;
+}
+
+void CRoundButton::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == TIMER_RAINBOW)
+	{
+		m_fRainbowHue += 3.0f;
+		if (m_fRainbowHue >= 360.0f)
+			m_fRainbowHue -= 360.0f;
+		Invalidate(FALSE);
+	}
+	CButton::OnTimer(nIDEvent);
+}
+
 BOOL CRoundButton::OnEraseBkgnd(CDC* pDC)
 {
-	return TRUE; // we paint everything in DrawItem
+	return TRUE;
 }
 
 void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
@@ -185,9 +256,6 @@ BOOL CRoundButton::PreTranslateMessage(MSG* pMsg)
 	return CButton::PreTranslateMessage(pMsg);
 }
 
-// ---------------------------------------------------------------------------
-// GDI+ path helper
-// ---------------------------------------------------------------------------
 GraphicsPath* CRoundButton::CreateRoundedRectanglePath(RectF rect, float radius)
 {
 	GraphicsPath* path = new GraphicsPath();
@@ -223,9 +291,36 @@ GraphicsPath* CRoundButton::CreateRoundedRectanglePath(RectF rect, float radius)
 	return path;
 }
 
-// ---------------------------------------------------------------------------
-// Owner-draw: solid border-ring + fill inside the rounded region
-// ---------------------------------------------------------------------------
+static Color ColorFromHSV(float h, float s, float v)
+{
+	float c = v * s;
+	float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
+	float m = v - c;
+	float r = 0, g = 0, b = 0;
+
+	if (h < 60)       { r = c; g = x; b = 0; }
+	else if (h < 120) { r = x; g = c; b = 0; }
+	else if (h < 180) { r = 0; g = c; b = x; }
+	else if (h < 240) { r = 0; g = x; b = c; }
+	else if (h < 300) { r = x; g = 0; b = c; }
+	else              { r = c; g = 0; b = x; }
+
+	return Color(255,
+		(BYTE)((r + m) * 255.0f + 0.5f),
+		(BYTE)((g + m) * 255.0f + 0.5f),
+		(BYTE)((b + m) * 255.0f + 0.5f));
+}
+
+void CRoundButton::BuildRainbowColors(Color* colors, int count, float hueOffset) const
+{
+	for (int i = 0; i < count; ++i)
+	{
+		float h = fmodf(hueOffset + (360.0f * i) / count, 360.0f);
+		if (h < 0.0f) h += 360.0f;
+		colors[i] = ColorFromHSV(h, 1.0f, 1.0f);
+	}
+}
+
 void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 {
 	HDC hdc = lpDrawItemStruct->hDC;
@@ -238,7 +333,6 @@ void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 
 	const float bw = max(0.0f, m_fBorderWidth);
 
-	// Full client area (region already clips to rounded shape)
 	RectF outer(
 		(REAL)rc.left,
 		(REAL)rc.top,
@@ -248,7 +342,6 @@ void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 	if (outer.Width < 2.0f || outer.Height < 2.0f)
 		return;
 
-	// Inner fill area inset by border width
 	RectF inner(
 		outer.X + bw,
 		outer.Y + bw,
@@ -266,30 +359,42 @@ void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 		         GetBValue(bg) * 80 / 100);
 	}
 
-	// 1) Outer fill = border color  (forms the solid border ring)
+	GraphicsPath* outerPath = CreateRoundedRectanglePath(outer, outerRadius);
+
+	if (m_bRainbowBorder && bw > 0.0f)
+	{
+		const int kCount = 12;
+		Color surround[kCount];
+		BuildRainbowColors(surround, kCount, m_fRainbowHue);
+
+		PathGradientBrush pgb(outerPath);
+		INT n = kCount;
+		pgb.SetSurroundColors(surround, &n);
+		pgb.SetCenterColor(Color(255,
+			GetRValue(bg), GetGValue(bg), GetBValue(bg)));
+		g.FillPath(&pgb, outerPath);
+	}
+	else
 	{
 		SolidBrush borderBrush(Color(255,
 			GetRValue(m_crBorder),
 			GetGValue(m_crBorder),
 			GetBValue(m_crBorder)));
-		GraphicsPath* path = CreateRoundedRectanglePath(outer, outerRadius);
-		g.FillPath(&borderBrush, path);
-		delete path;
+		g.FillPath(&borderBrush, outerPath);
 	}
+	delete outerPath;
 
-	// 2) Inner fill = background color
 	if (inner.Width > 0.0f && inner.Height > 0.0f)
 	{
 		SolidBrush fillBrush(Color(255,
 			GetRValue(bg),
 			GetGValue(bg),
 			GetBValue(bg)));
-		GraphicsPath* path = CreateRoundedRectanglePath(inner, innerRadius);
-		g.FillPath(&fillBrush, path);
-		delete path;
+		GraphicsPath* innerPath = CreateRoundedRectanglePath(inner, innerRadius);
+		g.FillPath(&fillBrush, innerPath);
+		delete innerPath;
 	}
 
-	// 3) Caption
 	CString text;
 	GetWindowText(text);
 	if (!text.IsEmpty())
