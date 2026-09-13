@@ -34,16 +34,30 @@ BOOL CRoundButtonDlg::OnInitDialog()
 	CDialogEx::OnInitDialog();
 
 	m_btnRound.SetRadius(18);
-	m_btnRound.SetBackgroundColor(RGB(30, 30, 40));
 	m_btnRound.SetBorderWidth(5.0f);
-	m_btnRound.SetUseMouseOverBackColor(true);
-	m_btnRound.SetMouseOverBackColor(RGB(50, 50, 70));
 	m_btnRound.SetWindowText(_T("Say Hi"));
 
-	// Rainbow border + animation demo
+	// Per-state background colors
+	m_btnRound.SetStateBackgroundColor(RBS_Normal,   RGB(30, 30, 40));
+	m_btnRound.SetStateBackgroundColor(RBS_Hover,    RGB(55, 55, 80));
+	m_btnRound.SetStateBackgroundColor(RBS_Pressed,  RGB(15, 15, 22));
+	m_btnRound.SetStateBackgroundColor(RBS_Disabled, RGB(70, 70, 75));
+
+	// Per-state border colors (used when rainbow is off)
+	m_btnRound.SetStateBorderColor(RBS_Normal,   RGB(0, 120, 220));
+	m_btnRound.SetStateBorderColor(RBS_Hover,    RGB(80, 180, 255));
+	m_btnRound.SetStateBorderColor(RBS_Pressed,  RGB(0, 70, 140));
+	m_btnRound.SetStateBorderColor(RBS_Disabled, RGB(110, 110, 110));
+
+	// Smooth color transitions between states
+	m_btnRound.SetColorLerp(true);
+	m_btnRound.SetColorLerpDuration(180);   // ms for full transition
+	m_btnRound.SetColorLerpEase(RBE_EaseOut);
+
+	// Rainbow border + animation
 	m_btnRound.SetRainbowBorder(true);
 	m_btnRound.SetRainbowAnimate(true);
-	m_btnRound.SetRainbowSpeed(40); // ms per frame
+	m_btnRound.SetRainbowSpeed(16);         // timer interval ms
 
 	m_lblStatus.SetWindowText(_T(""));
 

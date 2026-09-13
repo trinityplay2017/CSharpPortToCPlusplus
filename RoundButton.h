@@ -6,10 +6,30 @@
 
 using namespace Gdiplus;
 
-// CRoundButton - MFC port of the C# RoundButton control
-// True rounded window shape via SetWindowRgn + GDI+ anti-aliased fill/border.
-// Optional rainbow border with animation. Double-buffered to avoid flicker.
+// ---------------------------------------------------------------------------
+// Button visual states
+// ---------------------------------------------------------------------------
+enum RoundButtonState
+{
+	RBS_Normal = 0,
+	RBS_Hover,
+	RBS_Pressed,
+	RBS_Disabled,
+	RBS_Count
+};
 
+// Easing for color lerp
+enum RoundButtonEase
+{
+	RBE_Linear = 0,
+	RBE_EaseIn,
+	RBE_EaseOut,
+	RBE_EaseInOut
+};
+
+// ---------------------------------------------------------------------------
+// CRoundButton
+// ---------------------------------------------------------------------------
 class CRoundButton : public CButton
 {
 	DECLARE_DYNAMIC(CRoundButton)
@@ -18,28 +38,36 @@ public:
 	CRoundButton();
 	virtual ~CRoundButton();
 
+	// Geometry
 	void SetRadius(int radius);
 	int  GetRadius() const { return m_nRadius; }
-
-	void SetBackgroundColor(COLORREF color);
-	COLORREF GetBackgroundColor() const { return m_crBackground; }
-
-	void SetBorderColor(COLORREF color);
-	COLORREF GetBorderColor() const { return m_crBorder; }
 
 	void SetBorderWidth(float width);
 	float GetBorderWidth() const { return m_fBorderWidth; }
 
-	void SetUseMouseOverBackColor(bool use);
-	bool GetUseMouseOverBackColor() const { return m_bUseMouseOver; }
+	// ---- Per-state background / border colors ----
+	void SetStateBackgroundColor(RoundButtonState state, COLORREF color);
+	COLORREF GetStateBackgroundColor(RoundButtonState state) const;
 
+	void SetStateBorderColor(RoundButtonState state, COLORREF color);
+	COLORREF GetStateBorderColor(RoundButtonState state) const;
+
+	// Convenience: set Normal color (and optionally mirror to other states)
+	void SetBackgroundColor(COLORREF color);
+	COLORREF GetBackgroundColor() const;
+
+	void SetBorderColor(COLORREF color);
+	COLORREF GetBorderColor() const;
+
+	// Backward-compatible helpers
+	void SetUseMouseOverBackColor(bool use);
+	bool GetUseMouseOverBackColor() const { return m_bUseHoverColors; }
 	void SetMouseOverBackColor(COLORREF color);
-	COLORREF GetMouseOverBackColor() const { return m_crMouseOver; }
 
 	void SetButtonText(LPCTSTR text);
 	CString GetButtonText() const;
 
-	// Rainbow border
+	// ---- Rainbow border ----
 	void SetRainbowBorder(bool enable);
 	bool GetRainbowBorder() const { return m_bRainbowBorder; }
 
@@ -47,7 +75,19 @@ public:
 	bool GetRainbowAnimate() const { return m_bRainbowAnimate; }
 
 	void SetRainbowSpeed(UINT intervalMs);
-	UINT GetRainbowSpeed() const { return m_nRainbowInterval; }
+	UINT GetRainbowSpeed() const { return m_nAnimInterval; }
+
+	// ---- Color lerp (smooth transitions between states) ----
+	void SetColorLerp(bool enable);
+	bool GetColorLerp() const { return m_bColorLerp; }
+
+	// Full transition duration in milliseconds (default 150)
+	void SetColorLerpDuration(UINT ms);
+	UINT GetColorLerpDuration() const { return m_nLerpDurationMs; }
+
+	// Easing function for lerp
+	void SetColorLerpEase(RoundButtonEase ease);
+	RoundButtonEase GetColorLerpEase() const { return m_eLerpEase; }
 
 protected:
 	virtual void PreSubclassWindow();
@@ -60,6 +100,7 @@ protected:
 	afx_msg void OnMouseLeave();
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	afx_msg void OnEnable(BOOL bEnable);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnDestroy();
@@ -68,29 +109,51 @@ protected:
 
 private:
 	void UpdateRegion();
-	void StartRainbowTimer();
-	void StopRainbowTimer();
+	void EnsureAnimTimer();
+	void StopAnimTimer();
 	void PaintContent(HDC hdc, const CRect& rc);
 	GraphicsPath* CreateRoundedRectanglePath(RectF rect, float radius);
 	void BuildRainbowColors(Color* colors, int count, float hueOffset) const;
 
-	static const UINT_PTR TIMER_RAINBOW = 1001;
+	RoundButtonState ResolveState() const;
+	void CaptureCurrentAsFloats();
+	void ApplyLerpStep(float dtSec);
+	static float ApplyEase(float t, RoundButtonEase ease);
+	static COLORREF LerpColor(COLORREF a, COLORREF b, float t);
+	static void ColorToFloats(COLORREF c, float& r, float& g, float& b);
+	static COLORREF FloatsToColor(float r, float g, float b);
+
+	static const UINT_PTR TIMER_ANIM = 1001;
 
 	int         m_nRadius;
-	COLORREF    m_crBackground;
-	COLORREF    m_crBorder;
 	float       m_fBorderWidth;
-	bool        m_bUseMouseOver;
-	COLORREF    m_crMouseOver;
-	COLORREF    m_crOriginalBackground;
+
+	// Per-state colors
+	COLORREF    m_crBg[RBS_Count];
+	COLORREF    m_crBorder[RBS_Count];
+	bool        m_bUseHoverColors;
+
+	// Interaction
 	bool        m_bMouseOver;
 	bool        m_bTracking;
 	bool        m_bPressed;
 	ULONG_PTR   m_gdiplusToken;
 
+	// Rainbow
 	bool        m_bRainbowBorder;
 	bool        m_bRainbowAnimate;
-	UINT        m_nRainbowInterval;
 	float       m_fRainbowHue;
+
+	// Lerp
+	bool            m_bColorLerp;
+	UINT            m_nLerpDurationMs;
+	RoundButtonEase m_eLerpEase;
+	float           m_fCurBgR, m_fCurBgG, m_fCurBgB;
+	float           m_fCurBrR, m_fCurBrG, m_fCurBrB;
+	bool            m_bLerpInited;
+
+	// Shared animation timer (rainbow + lerp)
+	UINT        m_nAnimInterval;
 	bool        m_bTimerRunning;
+	DWORD       m_dwLastTick;
 };
