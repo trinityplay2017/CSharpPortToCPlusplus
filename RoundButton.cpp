@@ -6,7 +6,7 @@ IMPLEMENT_DYNAMIC(CRoundButton, CButton)
 CRoundButton::CRoundButton()
     : m_nRadius(20)
     , m_crBackground(RGB(11, 205, 255))
-    , m_crBorder(RGB(255, 255, 255))
+    , m_crBorder(RGB(0, 90, 180))
     , m_fBorderWidth(7.0f)
     , m_bUseMouseOver(true)
     , m_crMouseOver(RGB(200, 200, 200))
@@ -89,7 +89,7 @@ CString CRoundButton::GetButtonText() const
 
 BOOL CRoundButton::OnEraseBkgnd(CDC* pDC)
 {
-    return TRUE; // Prevent flicker, we draw everything in DrawItem
+    return TRUE;
 }
 
 void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
@@ -149,6 +149,9 @@ GraphicsPath* CRoundButton::CreateRoundedRectanglePath(RectF rect, float radius)
 {
     GraphicsPath* path = new GraphicsPath();
 
+    if (rect.Width <= 0.0f || rect.Height <= 0.0f)
+        return path;
+
     if (radius <= 0.0f)
     {
         path->AddRectangle(rect);
@@ -160,20 +163,18 @@ GraphicsPath* CRoundButton::CreateRoundedRectanglePath(RectF rect, float radius)
 
     if (diameter >= minDim)
     {
-        // Fully rounded (pill / ellipse)
         path->AddEllipse(rect);
         return path;
     }
 
-    // Rounded rectangle (clockwise from top-left)
     RectF arc(rect.X, rect.Y, diameter, diameter);
-    path->AddArc(arc, 180, 90);                     // top-left
+    path->AddArc(arc, 180.0f, 90.0f);
     arc.X = rect.GetRight() - diameter;
-    path->AddArc(arc, 270, 90);                     // top-right
+    path->AddArc(arc, 270.0f, 90.0f);
     arc.Y = rect.GetBottom() - diameter;
-    path->AddArc(arc, 0, 90);                       // bottom-right
+    path->AddArc(arc, 0.0f, 90.0f);
     arc.X = rect.X;
-    path->AddArc(arc, 90, 90);                      // bottom-left
+    path->AddArc(arc, 90.0f, 90.0f);
     path->CloseFigure();
 
     return path;
@@ -181,7 +182,6 @@ GraphicsPath* CRoundButton::CreateRoundedRectanglePath(RectF rect, float radius)
 
 void CRoundButton::DrawRoundedRectangle(Graphics& g, Pen& pen, Brush& brush, RectF rect, float radius)
 {
-    // This helper is kept for compatibility; DrawItem now does fill + stroke separately
     GraphicsPath* path = CreateRoundedRectanglePath(rect, radius);
     g.SetSmoothingMode(SmoothingModeAntiAlias);
     g.FillPath(&brush, path);
@@ -192,101 +192,94 @@ void CRoundButton::DrawRoundedRectangle(Graphics& g, Pen& pen, Brush& brush, Rec
 
 void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 {
-    CDC* pDC = CDC::FromHandle(lpDrawItemStruct->hDC);
+    HDC hdc = lpDrawItemStruct->hDC;
     CRect rc = lpDrawItemStruct->rcItem;
 
-    // Clear to dialog face color
-    pDC->FillSolidRect(&rc, GetSysColor(COLOR_3DFACE));
+    // Clear background
+    HBRUSH hBr = ::CreateSolidBrush(GetSysColor(COLOR_3DFACE));
+    ::FillRect(hdc, &rc, hBr);
+    ::DeleteObject(hBr);
 
-    Graphics g(lpDrawItemStruct->hDC);
+    Graphics g(hdc);
     g.SetSmoothingMode(SmoothingModeAntiAlias);
     g.SetPixelOffsetMode(PixelOffsetModeHighQuality);
     g.SetCompositingQuality(CompositingQualityHighQuality);
+    g.SetCompositingMode(CompositingModeSourceOver);
 
-    const float bw = m_fBorderWidth;
-    const float halfBw = bw * 0.5f;
-    // Small outer padding so anti-aliased edges are not clipped by the control bounds
-    const float pad = 1.5f;
+    // Leave 2px margin so edges are not clipped by the window
+    const float margin = 2.0f;
+    const float bw = max(1.0f, m_fBorderWidth);
 
-    // Rectangle that the CENTER of the pen follows
-    // Full pen width stays inside the control client area
-    RectF strokeRect(
-        (REAL)rc.left + pad + halfBw,
-        (REAL)rc.top + pad + halfBw,
-        (REAL)rc.Width() - 2.0f * (pad + halfBw),
-        (REAL)rc.Height() - 2.0f * (pad + halfBw));
+    RectF outer(
+        (REAL)rc.left + margin,
+        (REAL)rc.top + margin,
+        (REAL)rc.Width() - 2.0f * margin,
+        (REAL)rc.Height() - 2.0f * margin);
 
-    if (strokeRect.Width <= 0.0f || strokeRect.Height <= 0.0f)
+    if (outer.Width < 4.0f || outer.Height < 4.0f)
         return;
 
-    // Fill rectangle is inset by half the border so the stroke is not covered by the fill
-    RectF fillRect(
-        strokeRect.X + halfBw,
-        strokeRect.Y + halfBw,
-        strokeRect.Width - bw,
-        strokeRect.Height - bw);
+    // Inner rect = outer inset by border width (solid border ring technique)
+    RectF inner(
+        outer.X + bw,
+        outer.Y + bw,
+        outer.Width - 2.0f * bw,
+        outer.Height - 2.0f * bw);
 
-    // Radius for stroke path (outer curve)
-    float strokeRadius = (float)m_nRadius;
-    // Radius for fill path (inner curve) — keep concentric look
-    float fillRadius = max(0.0f, strokeRadius - halfBw);
+    float outerRadius = (float)m_nRadius;
+    float innerRadius = max(0.0f, outerRadius - bw);
 
-    // Background color (darken slightly when pressed)
+    // Background (pressed = darker)
     COLORREF bg = m_crBackground;
     if (m_bPressed)
     {
-        int r = GetRValue(bg) * 85 / 100;
-        int gcol = GetGValue(bg) * 85 / 100;
-        int b = GetBValue(bg) * 85 / 100;
-        bg = RGB(r, gcol, b);
+        bg = RGB(GetRValue(bg) * 80 / 100,
+                 GetGValue(bg) * 80 / 100,
+                 GetBValue(bg) * 80 / 100);
     }
 
-    // ---- Fill ----
-    if (fillRect.Width > 0.0f && fillRect.Height > 0.0f)
+    // 1) Draw OUTER shape filled with BORDER color  → this is the visible border ring
     {
-        SolidBrush brush(Color(255, GetRValue(bg), GetGValue(bg), GetBValue(bg)));
-        GraphicsPath* fillPath = CreateRoundedRectanglePath(fillRect, fillRadius);
-        g.FillPath(&brush, fillPath);
-        delete fillPath;
+        SolidBrush borderBrush(Color(255,
+            GetRValue(m_crBorder),
+            GetGValue(m_crBorder),
+            GetBValue(m_crBorder)));
+        GraphicsPath* outerPath = CreateRoundedRectanglePath(outer, outerRadius);
+        g.FillPath(&borderBrush, outerPath);
+        delete outerPath;
     }
 
-    // ---- Border (stroke) ----
-    if (bw > 0.0f)
+    // 2) Draw INNER shape filled with BACKGROUND color  → punches the center
+    if (inner.Width > 0.0f && inner.Height > 0.0f)
     {
-        Pen pen(Color(255, GetRValue(m_crBorder), GetGValue(m_crBorder), GetBValue(m_crBorder)), bw);
-        pen.SetAlignment(PenAlignmentCenter);
-        pen.SetLineJoin(LineJoinRound);
-        pen.SetStartCap(LineCapRound);
-        pen.SetEndCap(LineCapRound);
-
-        GraphicsPath* strokePath = CreateRoundedRectanglePath(strokeRect, strokeRadius);
-        g.DrawPath(&pen, strokePath);
-        delete strokePath;
+        SolidBrush fillBrush(Color(255,
+            GetRValue(bg),
+            GetGValue(bg),
+            GetBValue(bg)));
+        GraphicsPath* innerPath = CreateRoundedRectanglePath(inner, innerRadius);
+        g.FillPath(&fillBrush, innerPath);
+        delete innerPath;
     }
 
-    // ---- Text ----
+    // 3) Text centered in the inner area
     CString text;
     GetWindowText(text);
-
     if (!text.IsEmpty())
     {
-        Gdiplus::Font font(L"Segoe UI", 12, FontStyleBold, UnitPoint);
+        Gdiplus::Font font(L"Segoe UI", 12.0f, FontStyleBold, UnitPoint);
         StringFormat sf;
         sf.SetAlignment(StringAlignmentCenter);
         sf.SetLineAlignment(StringAlignmentCenter);
         sf.SetTrimming(StringTrimmingEllipsisCharacter);
         sf.SetFormatFlags(StringFormatFlagsNoWrap);
 
-        // Auto contrast: black or white text based on background luminance
         int luminance = (GetRValue(bg) * 299 + GetGValue(bg) * 587 + GetBValue(bg) * 114) / 1000;
         Color textColor = (luminance < 128)
             ? Color(255, 255, 255, 255)
-            : Color(255, 30, 30, 30);
+            : Color(255, 20, 20, 20);
 
         SolidBrush textBrush(textColor);
-
-        // Text uses the fill area so it stays inside the border
-        RectF textRect = (fillRect.Width > 0.0f) ? fillRect : strokeRect;
+        RectF textRect = (inner.Width > 0.0f) ? inner : outer;
         g.DrawString(text, -1, &font, textRect, &sf, &textBrush);
     }
 }
