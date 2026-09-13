@@ -37,8 +37,8 @@ BOOL CRoundButtonDlg::OnInitDialog()
 	m_btnRound.SetRadius(18);
 	m_btnRound.SetBackgroundColor(RGB(11, 205, 255));
 	// High-contrast border (white is nearly invisible on light system face color)
-	m_btnRound.SetBorderColor(RGB(0, 90, 180));
-	m_btnRound.SetBorderWidth(6.0f);
+	m_btnRound.SetBorderColor(RGB(0, 255, 180));
+	m_btnRound.SetBorderWidth(1.0f);
 	m_btnRound.SetUseMouseOverBackColor(true);
 	m_btnRound.SetMouseOverBackColor(RGB(180, 180, 180));
 	m_btnRound.SetWindowText(_T("Say Hi"));
