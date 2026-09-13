@@ -366,29 +366,47 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 	if (!m_bTracking)
 	{
 		TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT), TME_LEAVE, m_hWnd, 0 };
-		TrackMouseEvent(&tme); m_bTracking = true;
+		TrackMouseEvent(&tme);
+		m_bTracking = true;
 	}
-	if (!m_bMouseOver)
+
+	// With mouse capture (held button), OnMouseLeave may not fire.
+	// Always derive hover from whether the cursor is inside the client rect.
+	CRect rc;
+	GetClientRect(&rc);
+	bool inside = (rc.PtInRect(point) != FALSE);
+
+	if (inside != m_bMouseOver)
 	{
-		m_bMouseOver = true;
-		if (!m_bColorLerp) CaptureCurrentAsFloats();
+		m_bMouseOver = inside;
+		if (!m_bColorLerp)
+			CaptureCurrentAsFloats();
 		Invalidate(FALSE);
 	}
+
 	CButton::OnMouseMove(nFlags, point);
 }
 
 void CRoundButton::OnMouseLeave()
 {
-	m_bTracking = false; m_bMouseOver = false;
-	if (!m_bColorLerp) CaptureCurrentAsFloats();
-	Invalidate(FALSE);
+	m_bTracking = false;
+	if (m_bMouseOver)
+	{
+		m_bMouseOver = false;
+		if (!m_bColorLerp)
+			CaptureCurrentAsFloats();
+		Invalidate(FALSE);
+	}
 	CButton::OnMouseLeave();
 }
 
 void CRoundButton::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	m_bPressed = true;
-	if (!m_bColorLerp) CaptureCurrentAsFloats();
+	m_bMouseOver = true; // click started inside
+	SetCapture();        // keep receiving moves outside so leave-while-pressed works
+	if (!m_bColorLerp)
+		CaptureCurrentAsFloats();
 	Invalidate(FALSE);
 	CButton::OnLButtonDown(nFlags, point);
 }
@@ -396,7 +414,16 @@ void CRoundButton::OnLButtonDown(UINT nFlags, CPoint point)
 void CRoundButton::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	m_bPressed = false;
-	if (!m_bColorLerp) CaptureCurrentAsFloats();
+	if (GetCapture() == this)
+		ReleaseCapture();
+
+	// Update hover based on release position
+	CRect rc;
+	GetClientRect(&rc);
+	m_bMouseOver = (rc.PtInRect(point) != FALSE);
+
+	if (!m_bColorLerp)
+		CaptureCurrentAsFloats();
 	Invalidate(FALSE);
 	CButton::OnLButtonUp(nFlags, point);
 }
