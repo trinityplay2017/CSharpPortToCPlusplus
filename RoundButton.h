@@ -8,7 +8,7 @@ using namespace Gdiplus;
 
 // CRoundButton - MFC port of the C# RoundButton control
 // True rounded window shape via SetWindowRgn + GDI+ anti-aliased fill/border.
-// Optional rainbow border with animation.
+// Optional rainbow border with animation. Double-buffered to avoid flicker.
 
 class CRoundButton : public CButton
 {
@@ -18,7 +18,6 @@ public:
 	CRoundButton();
 	virtual ~CRoundButton();
 
-	// Properties
 	void SetRadius(int radius);
 	int  GetRadius() const { return m_nRadius; }
 
@@ -47,7 +46,6 @@ public:
 	void SetRainbowAnimate(bool enable);
 	bool GetRainbowAnimate() const { return m_bRainbowAnimate; }
 
-	// Animation interval in milliseconds (default 40). Smaller = faster.
 	void SetRainbowSpeed(UINT intervalMs);
 	UINT GetRainbowSpeed() const { return m_nRainbowInterval; }
 
@@ -56,6 +54,7 @@ protected:
 	virtual void DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct);
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 
+	afx_msg void OnPaint();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnMouseLeave();
@@ -71,6 +70,7 @@ private:
 	void UpdateRegion();
 	void StartRainbowTimer();
 	void StopRainbowTimer();
+	void PaintContent(HDC hdc, const CRect& rc);
 	GraphicsPath* CreateRoundedRectanglePath(RectF rect, float radius);
 	void BuildRainbowColors(Color* colors, int count, float hueOffset) const;
 
@@ -88,10 +88,9 @@ private:
 	bool        m_bPressed;
 	ULONG_PTR   m_gdiplusToken;
 
-	// Rainbow
 	bool        m_bRainbowBorder;
 	bool        m_bRainbowAnimate;
-	UINT        m_nRainbowInterval; // ms
-	float       m_fRainbowHue;      // 0..360 animation offset
+	UINT        m_nRainbowInterval;
+	float       m_fRainbowHue;
 	bool        m_bTimerRunning;
 };
