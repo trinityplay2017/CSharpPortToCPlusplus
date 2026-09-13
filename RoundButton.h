@@ -98,8 +98,9 @@ protected:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnMouseLeave();
-	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
-	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	// Pressed state from DrawItem (ODS_SELECTED); LButton handlers not used
+	// afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	// afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	afx_msg void OnEnable(BOOL bEnable);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
