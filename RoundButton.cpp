@@ -59,8 +59,9 @@ BEGIN_MESSAGE_MAP(CRoundButton, CButton)
 	ON_WM_SIZE()
 	ON_WM_MOUSEMOVE()
 	ON_WM_MOUSELEAVE()
-	ON_WM_LBUTTONDOWN()
-	ON_WM_LBUTTONUP()
+	// Pressed state comes from DrawItem (ODS_SELECTED), not these handlers
+	// ON_WM_LBUTTONDOWN()
+	// ON_WM_LBUTTONUP()
 	ON_WM_ENABLE()
 	ON_WM_ERASEBKGND()
 	ON_WM_TIMER()
@@ -260,11 +261,9 @@ RoundButtonState CRoundButton::ResolveState() const
 	if (GetSafeHwnd() && !IsWindowEnabled())
 		return RBS_Disabled;
 
-	// Pressed look only while the mouse is still over the button
 	if (m_bPressed && m_bMouseOver)
 		return RBS_Pressed;
 
-	// Mouse left while still holding the button → show hover (not pressed)
 	if (m_bPressed && !m_bMouseOver && m_bUseHoverColors)
 		return RBS_Hover;
 
@@ -352,7 +351,15 @@ void CRoundButton::OnPaint()
 
 void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lp)
 {
-	CRect rc = lp->rcItem; HDC hdc = lp->hDC;
+	// Pressed / disabled come from Windows item state; hover stays on m_bMouseOver
+	bool pressed = (lp->itemState & ODS_SELECTED) != 0;
+	if (pressed != m_bPressed)
+	{
+		m_bPressed = pressed;
+	}
+
+	CRect rc = lp->rcItem;
+	HDC hdc = lp->hDC;
 	HDC hdcMem = ::CreateCompatibleDC(hdc);
 	HBITMAP hBmp = ::CreateCompatibleBitmap(hdc, rc.Width(), rc.Height());
 	HBITMAP hOld = (HBITMAP)::SelectObject(hdcMem, hBmp);
@@ -370,8 +377,6 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 		m_bTracking = true;
 	}
 
-	// With mouse capture (held button), OnMouseLeave may not fire.
-	// Always derive hover from whether the cursor is inside the client rect.
 	CRect rc;
 	GetClientRect(&rc);
 	bool inside = (rc.PtInRect(point) != FALSE);
@@ -400,33 +405,9 @@ void CRoundButton::OnMouseLeave()
 	CButton::OnMouseLeave();
 }
 
-void CRoundButton::OnLButtonDown(UINT nFlags, CPoint point)
-{
-	m_bPressed = true;
-	m_bMouseOver = true; // click started inside
-	SetCapture();        // keep receiving moves outside so leave-while-pressed works
-	if (!m_bColorLerp)
-		CaptureCurrentAsFloats();
-	Invalidate(FALSE);
-	CButton::OnLButtonDown(nFlags, point);
-}
-
-void CRoundButton::OnLButtonUp(UINT nFlags, CPoint point)
-{
-	m_bPressed = false;
-	if (GetCapture() == this)
-		ReleaseCapture();
-
-	// Update hover based on release position
-	CRect rc;
-	GetClientRect(&rc);
-	m_bMouseOver = (rc.PtInRect(point) != FALSE);
-
-	if (!m_bColorLerp)
-		CaptureCurrentAsFloats();
-	Invalidate(FALSE);
-	CButton::OnLButtonUp(nFlags, point);
-}
+// LButton down/up intentionally not handled.
+// Pressed state is taken from DRAWITEMSTRUCT::itemState (ODS_SELECTED) in DrawItem.
+// Hover continues to be tracked via OnMouseMove / OnMouseLeave.
 
 void CRoundButton::OnEnable(BOOL bEnable)
 {
