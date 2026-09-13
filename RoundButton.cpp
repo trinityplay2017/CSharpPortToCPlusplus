@@ -257,9 +257,20 @@ void CRoundButton::OnTimer(UINT_PTR nIDEvent)
 
 RoundButtonState CRoundButton::ResolveState() const
 {
-	if (GetSafeHwnd() && !IsWindowEnabled()) return RBS_Disabled;
-	if (m_bPressed) return RBS_Pressed;
-	if (m_bMouseOver && m_bUseHoverColors) return RBS_Hover;
+	if (GetSafeHwnd() && !IsWindowEnabled())
+		return RBS_Disabled;
+
+	// Pressed look only while the mouse is still over the button
+	if (m_bPressed && m_bMouseOver)
+		return RBS_Pressed;
+
+	// Mouse left while still holding the button → show hover (not pressed)
+	if (m_bPressed && !m_bMouseOver && m_bUseHoverColors)
+		return RBS_Hover;
+
+	if (m_bMouseOver && m_bUseHoverColors)
+		return RBS_Hover;
+
 	return RBS_Normal;
 }
 
@@ -311,10 +322,6 @@ void CRoundButton::ApplyLerpStep(float dtSec)
 	if (duration < 0.001f) duration = 0.001f;
 	float step = dtSec / duration;
 	if (step > 1.0f) step = 1.0f;
-	// Map linear step through easing for smoother motion
-	float eased = ApplyEase(step, m_eLerpEase);
-	if (m_eLerpEase == RBE_Linear) eased = step;
-	// Exponential approach scaled by ease factor
 	float k = (m_eLerpEase == RBE_Linear) ? step : (1.0f - powf(1.0f - step, (m_eLerpEase == RBE_EaseIn) ? 0.5f : 2.0f));
 	if (k < 0.0f) k = 0.0f; if (k > 1.0f) k = 1.0f;
 
