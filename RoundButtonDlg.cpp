@@ -7,6 +7,8 @@
 #define new DEBUG_NEW
 #endif
 
+IMPLEMENT_DYNAMIC(CRoundButtonDlg, CDialogEx)
+
 CRoundButtonDlg::CRoundButtonDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_ROUNDBUTTON_DIALOG, pParent)
 {
