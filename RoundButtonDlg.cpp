@@ -33,15 +33,17 @@ BOOL CRoundButtonDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
-	// Demo look: cyan fill + strong border so it is clearly visible on a standard dialog
 	m_btnRound.SetRadius(18);
-	m_btnRound.SetBackgroundColor(RGB(11, 205, 255));
-	// High-contrast border (white is nearly invisible on light system face color)
-	m_btnRound.SetBorderColor(RGB(0, 255, 180));
-	m_btnRound.SetBorderWidth(1.0f);
+	m_btnRound.SetBackgroundColor(RGB(30, 30, 40));
+	m_btnRound.SetBorderWidth(5.0f);
 	m_btnRound.SetUseMouseOverBackColor(true);
-	m_btnRound.SetMouseOverBackColor(RGB(180, 180, 180));
+	m_btnRound.SetMouseOverBackColor(RGB(50, 50, 70));
 	m_btnRound.SetWindowText(_T("Say Hi"));
+
+	// Rainbow border + animation demo
+	m_btnRound.SetRainbowBorder(true);
+	m_btnRound.SetRainbowAnimate(true);
+	m_btnRound.SetRainbowSpeed(40); // ms per frame
 
 	m_lblStatus.SetWindowText(_T(""));
 
