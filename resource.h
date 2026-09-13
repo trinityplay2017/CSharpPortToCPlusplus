@@ -3,7 +3,6 @@
 // Used by RoundButton.rc
 //
 #define IDD_ROUNDBUTTON_DIALOG           102
-#define IDR_MAINFRAME                   128
 #define IDC_ROUNDBUTTON                  1000
 #define IDC_STATUS                      1001
 
