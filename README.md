@@ -8,34 +8,40 @@ C++ MFC port of the [DevInDeep/RoundButton](https://github.com/DevInDeep/RoundBu
 - Custom background color, border color and border width
 - Optional mouse-over background color change
 - Owner-draw using GDI+ for anti-aliased rendering
-- Click handling and text display with automatic contrast
+- Click handling and text display with automatic contrast (black/white)
+
+## Quick Start
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/trinityplay2017/CSharpPortToCPlusplus.git
+   cd CSharpPortToCPlusplus
+   ```
+2. Open **`RoundButton.sln`** in Visual Studio 2019 or 2022.
+3. Select **Debug | x64** (or Win32) and press **F5**.
+
+Requirements:
+- Visual Studio with **Desktop development with C++** workload
+- **MFC and ATL** support installed (Individual components → “MFC and ATL”)
+- Windows 10 SDK
 
 ## Project Structure
 
 ```
-RoundButtonMFC/
-├── RoundButton.h / .cpp     # The custom CRoundButton control
-├── RoundButtonDlg.h / .cpp  # Demo dialog
-├── RoundButtonApp.h / .cpp  # Application entry
-├── stdafx.h / .cpp          # Precompiled header
-├── targetver.h
+├── RoundButton.sln              # Visual Studio solution
+├── RoundButton.vcxproj          # Project file
+├── RoundButton.vcxproj.filters
+├── RoundButton.h / .cpp         # CRoundButton custom control
+├── RoundButtonDlg.h / .cpp      # Demo dialog
+├── RoundButtonApp.h / .cpp      # Application entry point
+├── RoundButton.rc               # Dialog resource
 ├── resource.h
-├── RoundButton.rc
+├── stdafx.h / .cpp              # Precompiled header
+├── targetver.h
+├── res/
+│   └── RoundButton.rc2
 └── README.md
 ```
-
-## How to Build (Visual Studio)
-
-1. Open Visual Studio 2019/2022.
-2. Create a new project: **MFC App** → Application type: **Dialog based** → uncheck "Use Unicode libraries" if you prefer ANSI (or keep Unicode).
-3. Replace the generated dialog/app files with the ones from this repository (or add the source files to your project).
-4. Add `RoundButton.h` and `RoundButton.cpp` to the project.
-5. Make sure **GDI+** is linked (`gdiplus.lib` – already pragma'd in the header).
-6. In the dialog resource, place an owner-draw Button control with ID `IDC_ROUNDBUTTON` and a Static control with ID `IDC_STATUS`.
-7. In `DoDataExchange` subclass the button as shown.
-8. Build and run.
-
-Alternatively you can start from an empty MFC dialog project and drop these files in.
 
 ## Usage Example
 
@@ -56,12 +62,24 @@ m_btn.SetMouseOverBackColor(RGB(180, 180, 180));
 m_btn.SetWindowText(_T("Say Hi"));
 ```
 
+## Public API
+
+| Method | Description |
+|--------|-------------|
+| `SetRadius(int)` | Corner radius in pixels |
+| `SetBackgroundColor(COLORREF)` | Fill color |
+| `SetBorderColor(COLORREF)` | Border color |
+| `SetBorderWidth(float)` | Border thickness |
+| `SetUseMouseOverBackColor(bool)` | Enable hover color change |
+| `SetMouseOverBackColor(COLORREF)` | Hover fill color |
+| `SetWindowText` / `GetWindowText` | Button caption |
+
 ## Notes
 
-- Requires Windows SDK with GDI+ (standard on modern VS).
-- The original C# control embedded a flat Button inside a UserControl; this port uses a pure owner-draw `CButton` for simplicity and better performance.
-- Mouse tracking uses `TrackMouseEvent` for enter/leave.
-- Text color automatically chooses black or white based on background luminance.
+- Uses pure owner-draw `CButton` + GDI+ (no embedded child controls).
+- Mouse enter/leave via `TrackMouseEvent`.
+- Text color is chosen automatically from background luminance.
+- Toolset is set to **v143** (VS 2022). For VS 2019 change Platform Toolset to **v142** in project properties.
 
 ## Original Project
 
