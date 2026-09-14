@@ -118,6 +118,7 @@ private:
 
 	RoundButtonState ResolveState() const;
 	void CaptureCurrentAsFloats();
+	void SnapToState(RoundButtonState st);
 	void ApplyLerpStep(float dtSec);
 	static float ApplyEase(float t, RoundButtonEase ease);
 	static COLORREF LerpColor(COLORREF a, COLORREF b, float t);
