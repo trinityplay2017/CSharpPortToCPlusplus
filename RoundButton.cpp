@@ -59,7 +59,6 @@ BEGIN_MESSAGE_MAP(CRoundButton, CButton)
 	ON_WM_SIZE()
 	ON_WM_MOUSEMOVE()
 	ON_WM_MOUSELEAVE()
-	// Pressed is driven from DrawItem (ODS_SELECTED) + mouse flags below
 	// ON_WM_LBUTTONDOWN()
 	// ON_WM_LBUTTONUP()
 	ON_WM_ENABLE()
@@ -260,16 +259,12 @@ RoundButtonState CRoundButton::ResolveState() const
 {
 	if (GetSafeHwnd() && !IsWindowEnabled())
 		return RBS_Disabled;
-
 	if (m_bPressed && m_bMouseOver)
 		return RBS_Pressed;
-
 	if (m_bPressed && !m_bMouseOver && m_bUseHoverColors)
 		return RBS_Hover;
-
 	if (m_bMouseOver && m_bUseHoverColors)
 		return RBS_Hover;
-
 	return RBS_Normal;
 }
 
@@ -309,6 +304,13 @@ float CRoundButton::ApplyEase(float t, RoundButtonEase ease)
 void CRoundButton::CaptureCurrentAsFloats()
 {
 	RoundButtonState st = ResolveState();
+	ColorToFloats(m_crBg[st], m_fCurBgR, m_fCurBgG, m_fCurBgB);
+	ColorToFloats(m_crBorder[st], m_fCurBrR, m_fCurBrG, m_fCurBrB);
+}
+
+void CRoundButton::SnapToState(RoundButtonState st)
+{
+	if (st < 0 || st >= RBS_Count) st = RBS_Normal;
 	ColorToFloats(m_crBg[st], m_fCurBgR, m_fCurBgG, m_fCurBgB);
 	ColorToFloats(m_crBorder[st], m_fCurBrR, m_fCurBrG, m_fCurBrB);
 }
@@ -360,8 +362,13 @@ void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lp)
 	else if (!btnDown)
 		m_bPressed = false;
 
-	if (oldPressed != m_bPressed && m_bColorLerp)
-		ApplyLerpStep(0.05f);
+	if (oldPressed != m_bPressed)
+	{
+		if (m_bPressed && m_bMouseOver)
+			SnapToState(RBS_Pressed);
+		else
+			SnapToState(ResolveState());
+	}
 
 	CRect rc = lp->rcItem;
 	HDC hdc = lp->hDC;
@@ -402,10 +409,10 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 
 	if (oldOver != m_bMouseOver || oldPressed != m_bPressed)
 	{
-		if (m_bColorLerp)
-			ApplyLerpStep(0.05f);
-		else
-			CaptureCurrentAsFloats();
+		if (m_bPressed && m_bMouseOver)
+			SnapToState(RBS_Pressed);
+		else if (!m_bColorLerp)
+			SnapToState(ResolveState());
 		Invalidate(FALSE);
 	}
 
