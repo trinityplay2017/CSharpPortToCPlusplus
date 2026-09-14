@@ -59,7 +59,7 @@ BEGIN_MESSAGE_MAP(CRoundButton, CButton)
 	ON_WM_SIZE()
 	ON_WM_MOUSEMOVE()
 	ON_WM_MOUSELEAVE()
-	// Pressed state comes from DrawItem (ODS_SELECTED), not these handlers
+	// Pressed is driven from DrawItem (ODS_SELECTED) + mouse flags below
 	// ON_WM_LBUTTONDOWN()
 	// ON_WM_LBUTTONUP()
 	ON_WM_ENABLE()
@@ -351,15 +351,17 @@ void CRoundButton::OnPaint()
 
 void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lp)
 {
-	// ODS_SELECTED is true only while pressed *and* cursor is over the control.
-	// Physical button-down uses GetKeyState so leave-while-held keeps m_bPressed.
 	bool odsPressed = (lp->itemState & ODS_SELECTED) != 0;
 	bool btnDown = (GetKeyState(VK_LBUTTON) & 0x8000) != 0;
+
+	bool oldPressed = m_bPressed;
 	if (odsPressed)
 		m_bPressed = true;
 	else if (!btnDown)
 		m_bPressed = false;
-	// else: button still down after leave → keep m_bPressed
+
+	if (oldPressed != m_bPressed && m_bColorLerp)
+		ApplyLerpStep(0.05f);
 
 	CRect rc = lp->rcItem;
 	HDC hdc = lp->hDC;
@@ -375,8 +377,11 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 {
 	if (!m_bTracking)
 	{
-		TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT), TME_LEAVE, m_hWnd, 0 };
-		TrackMouseEvent(&tme);
+		TRACKMOUSEEVENT tme = {};
+		tme.cbSize = sizeof(tme);
+		tme.dwFlags = TME_LEAVE;
+		tme.hwndTrack = m_hWnd;
+		::TrackMouseEvent(&tme);
 		m_bTracking = true;
 	}
 
@@ -390,7 +395,6 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 
 	m_bMouseOver = inside;
 
-	// Pressed latch: set when down+inside, clear on release, keep on leave-while-held
 	if (!btnDown)
 		m_bPressed = false;
 	else if (inside)
@@ -398,7 +402,9 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 
 	if (oldOver != m_bMouseOver || oldPressed != m_bPressed)
 	{
-		if (!m_bColorLerp)
+		if (m_bColorLerp)
+			ApplyLerpStep(0.05f);
+		else
 			CaptureCurrentAsFloats();
 		Invalidate(FALSE);
 	}
@@ -412,16 +418,14 @@ void CRoundButton::OnMouseLeave()
 	if (m_bMouseOver)
 	{
 		m_bMouseOver = false;
-		if (!m_bColorLerp)
+		if (m_bColorLerp)
+			ApplyLerpStep(0.05f);
+		else
 			CaptureCurrentAsFloats();
 		Invalidate(FALSE);
 	}
 	CButton::OnMouseLeave();
 }
-
-// LButton down/up intentionally not handled via message map.
-// Pressed: ODS_SELECTED + GetKeyState/MK_LBUTTON latch (survives leave-while-held).
-// Hover: OnMouseMove / OnMouseLeave (PtInRect).
 
 void CRoundButton::OnEnable(BOOL bEnable)
 {
@@ -529,19 +533,29 @@ void CRoundButton::PaintContent(HDC hdc, const CRect& rc)
 	}
 	delete path;
 
-	CString text; GetWindowText(text);
+	CString text;
+	GetWindowText(text);
 	if (!text.IsEmpty())
 	{
-		Gdiplus::Font font(L"Segoe UI", 12.0f, FontStyleBold, UnitPoint);
+		HFONT hFont = (HFONT)::SendMessage(GetParent()->GetSafeHwnd(), WM_GETFONT, 0, 0);
+		if (!hFont)
+			hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+
+		Gdiplus::Font font(hdc, hFont);
 		StringFormat sf;
 		sf.SetAlignment(StringAlignmentCenter);
 		sf.SetLineAlignment(StringAlignmentCenter);
 		sf.SetTrimming(StringTrimmingEllipsisCharacter);
 		sf.SetFormatFlags(StringFormatFlagsNoWrap);
+
 		int luminance = (GetRValue(bg) * 299 + GetGValue(bg) * 587 + GetBValue(bg) * 114) / 1000;
-		Color textColor = (luminance < 128) ? Color(255, 255, 255, 255) : Color(255, 20, 20, 20);
+		Color textColor = (luminance < 128)
+			? Color(255, 255, 255, 255)
+			: Color(255, 20, 20, 20);
+
 		SolidBrush textBrush(textColor);
-		RectF textRect = pathRect; textRect.Inflate(-bw, -bw);
+		RectF textRect = pathRect;
+		textRect.Inflate(-bw, -bw);
 		g.DrawString(text, -1, &font, textRect, &sf, &textBrush);
 	}
 }
