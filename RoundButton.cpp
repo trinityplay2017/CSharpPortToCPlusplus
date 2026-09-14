@@ -351,15 +351,15 @@ void CRoundButton::OnPaint()
 
 void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lp)
 {
-	// ODS_SELECTED is only set while the cursor is over the button.
-	// While held and the cursor has left, Windows clears ODS_SELECTED but capture
-	// remains — keep m_bPressed true so ResolveState can show Hover.
+	// ODS_SELECTED is true only while pressed *and* cursor is over the control.
+	// Physical button-down uses GetKeyState so leave-while-held keeps m_bPressed.
 	bool odsPressed = (lp->itemState & ODS_SELECTED) != 0;
+	bool btnDown = (GetKeyState(VK_LBUTTON) & 0x8000) != 0;
 	if (odsPressed)
 		m_bPressed = true;
-	else if (GetCapture() != this)
+	else if (!btnDown)
 		m_bPressed = false;
-	// else: still captured after leave → leave m_bPressed unchanged (true)
+	// else: button still down after leave → keep m_bPressed
 
 	CRect rc = lp->rcItem;
 	HDC hdc = lp->hDC;
@@ -380,20 +380,23 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 		m_bTracking = true;
 	}
 
-	// Under capture, mouse leave is delivered as moves with points outside the client.
 	CRect rc;
 	GetClientRect(&rc);
 	bool inside = (rc.PtInRect(point) != FALSE);
+	bool btnDown = (nFlags & MK_LBUTTON) != 0;
 
-	bool pressed = (nFlags & MK_LBUTTON) != 0;
-	// If we still have capture, trust MK_LBUTTON for pressed (covers leave-while-held).
-	if (GetCapture() == this || pressed)
-		m_bPressed = pressed;
+	bool oldOver = m_bMouseOver;
+	bool oldPressed = m_bPressed;
 
-	bool changed = (inside != m_bMouseOver);
 	m_bMouseOver = inside;
 
-	if (changed)
+	// Pressed latch: set when down+inside, clear on release, keep on leave-while-held
+	if (!btnDown)
+		m_bPressed = false;
+	else if (inside)
+		m_bPressed = true;
+
+	if (oldOver != m_bMouseOver || oldPressed != m_bPressed)
 	{
 		if (!m_bColorLerp)
 			CaptureCurrentAsFloats();
@@ -416,8 +419,8 @@ void CRoundButton::OnMouseLeave()
 	CButton::OnMouseLeave();
 }
 
-// LButton down/up intentionally not handled.
-// Pressed: DrawItem ODS_SELECTED + capture/MK_LBUTTON in OnMouseMove.
+// LButton down/up intentionally not handled via message map.
+// Pressed: ODS_SELECTED + GetKeyState/MK_LBUTTON latch (survives leave-while-held).
 // Hover: OnMouseMove / OnMouseLeave (PtInRect).
 
 void CRoundButton::OnEnable(BOOL bEnable)
