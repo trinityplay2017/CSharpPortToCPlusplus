@@ -353,18 +353,13 @@ void CRoundButton::OnPaint()
 
 void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lp)
 {
-	bool odsPressed = (lp->itemState & ODS_SELECTED) != 0;
-	bool btnDown = (GetKeyState(VK_LBUTTON) & 0x8000) != 0;
-
+	// Pressed state ONLY from Windows owner-draw flag
 	bool oldPressed = m_bPressed;
-	if (odsPressed)
-		m_bPressed = true;
-	else if (!btnDown)
-		m_bPressed = false;
+	m_bPressed = (lp->itemState & ODS_SELECTED) != 0;
 
 	if (oldPressed != m_bPressed)
 	{
-		if (m_bPressed && m_bMouseOver)
+		if (m_bPressed)
 			SnapToState(RBS_Pressed);
 		else
 			SnapToState(ResolveState());
@@ -392,26 +387,15 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 		m_bTracking = true;
 	}
 
+	// Hover only — m_bPressed is exclusively from ODS_SELECTED in DrawItem
 	CRect rc;
 	GetClientRect(&rc);
 	bool inside = (rc.PtInRect(point) != FALSE);
-	bool btnDown = (nFlags & MK_LBUTTON) != 0;
 
-	bool oldOver = m_bMouseOver;
-	bool oldPressed = m_bPressed;
-
-	m_bMouseOver = inside;
-
-	if (!btnDown)
-		m_bPressed = false;
-	else if (inside)
-		m_bPressed = true;
-
-	if (oldOver != m_bMouseOver || oldPressed != m_bPressed)
+	if (inside != m_bMouseOver)
 	{
-		if (m_bPressed && m_bMouseOver)
-			SnapToState(RBS_Pressed);
-		else if (!m_bColorLerp)
+		m_bMouseOver = inside;
+		if (!m_bColorLerp)
 			SnapToState(ResolveState());
 		Invalidate(FALSE);
 	}
