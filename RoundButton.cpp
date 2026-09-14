@@ -351,12 +351,15 @@ void CRoundButton::OnPaint()
 
 void CRoundButton::DrawItem(LPDRAWITEMSTRUCT lp)
 {
-	// Pressed / disabled come from Windows item state; hover stays on m_bMouseOver
-	bool pressed = (lp->itemState & ODS_SELECTED) != 0;
-	if (pressed != m_bPressed)
-	{
-		m_bPressed = pressed;
-	}
+	// ODS_SELECTED is only set while the cursor is over the button.
+	// While held and the cursor has left, Windows clears ODS_SELECTED but capture
+	// remains — keep m_bPressed true so ResolveState can show Hover.
+	bool odsPressed = (lp->itemState & ODS_SELECTED) != 0;
+	if (odsPressed)
+		m_bPressed = true;
+	else if (GetCapture() != this)
+		m_bPressed = false;
+	// else: still captured after leave → leave m_bPressed unchanged (true)
 
 	CRect rc = lp->rcItem;
 	HDC hdc = lp->hDC;
@@ -377,13 +380,21 @@ void CRoundButton::OnMouseMove(UINT nFlags, CPoint point)
 		m_bTracking = true;
 	}
 
+	// Under capture, mouse leave is delivered as moves with points outside the client.
 	CRect rc;
 	GetClientRect(&rc);
 	bool inside = (rc.PtInRect(point) != FALSE);
 
-	if (inside != m_bMouseOver)
+	bool pressed = (nFlags & MK_LBUTTON) != 0;
+	// If we still have capture, trust MK_LBUTTON for pressed (covers leave-while-held).
+	if (GetCapture() == this || pressed)
+		m_bPressed = pressed;
+
+	bool changed = (inside != m_bMouseOver);
+	m_bMouseOver = inside;
+
+	if (changed)
 	{
-		m_bMouseOver = inside;
 		if (!m_bColorLerp)
 			CaptureCurrentAsFloats();
 		Invalidate(FALSE);
@@ -406,8 +417,8 @@ void CRoundButton::OnMouseLeave()
 }
 
 // LButton down/up intentionally not handled.
-// Pressed state is taken from DRAWITEMSTRUCT::itemState (ODS_SELECTED) in DrawItem.
-// Hover continues to be tracked via OnMouseMove / OnMouseLeave.
+// Pressed: DrawItem ODS_SELECTED + capture/MK_LBUTTON in OnMouseMove.
+// Hover: OnMouseMove / OnMouseLeave (PtInRect).
 
 void CRoundButton::OnEnable(BOOL bEnable)
 {
